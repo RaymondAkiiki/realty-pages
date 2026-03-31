@@ -39,7 +39,6 @@ export default function ContactModal({ contact, onClose, onSave }: Props) {
     }
   }, [contact])
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
@@ -82,17 +81,16 @@ export default function ContactModal({ contact, onClose, onSave }: Props) {
     const data = await res.json()
     setLoading(false)
 
-    if (!res.ok) {
-      setError(data.error || 'Failed to save')
-      return
-    }
-
+    if (!res.ok) { setError(data.error || 'Failed to save'); return }
     onSave(data.contact)
     onClose()
   }
 
   const label = (text: string) => (
-    <label style={{ display: 'block', fontSize: 11, color: 'var(--ink-2)', marginBottom: 5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+    <label style={{
+      display: 'block', fontSize: 11, color: 'var(--ink-2)', marginBottom: 5,
+      fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.07em'
+    }}>
       {text}
     </label>
   )
@@ -101,95 +99,130 @@ export default function ContactModal({ contact, onClose, onSave }: Props) {
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal">
         {/* Header */}
-        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{
+          padding: '16px 20px',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          position: 'sticky',
+          top: 0,
+          background: 'var(--surface)',
+          zIndex: 1,
+        }}>
           <h2>{contact ? 'Edit contact' : 'New contact'}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 4 }}>
-            ×
-          </button>
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', color: 'var(--muted)',
+            cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 4,
+          }}>×</button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-            {/* Name + Type */}
+            {/* Name + Type — stack on mobile */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
+              <div style={{ gridColumn: 'span 2' }} className="mobile-full">
                 {label('Name *')}
-                <input className="input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Full name" required autoFocus />
+                <input className="input" value={form.name}
+                  onChange={e => set('name', e.target.value)}
+                  placeholder="Full name" required autoFocus />
               </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 {label('Type')}
                 <select className="input" value={form.type} onChange={e => set('type', e.target.value)}>
                   {CONTACT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
-            </div>
-
-            {/* Phone + Email */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                {label('Phone')}
-                <input className="input" type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+256 700 000000" />
-              </div>
-              <div>
-                {label('Email')}
-                <input className="input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="contact@email.com" />
-              </div>
-            </div>
-
-            {/* Area + City */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                {label('Area / Neighbourhood')}
-                <input className="input" value={form.area} onChange={e => set('area', e.target.value)} placeholder="e.g. Kololo, Bugolobi" />
-              </div>
-              <div>
-                {label('City')}
-                <input className="input" value={form.city} onChange={e => set('city', e.target.value)} placeholder="e.g. Kampala" />
-              </div>
-            </div>
-
-            {/* Status + Source */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 {label('Status')}
                 <select className="input" value={form.status} onChange={e => set('status', e.target.value)}>
                   {CONTACT_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                {label('Source')}
-                <input className="input" value={form.source} onChange={e => set('source', e.target.value)} placeholder="e.g. Referral, Portal" />
+                {label('Phone')}
+                <input className="input" type="tel" value={form.phone}
+                  onChange={e => set('phone', e.target.value)}
+                  placeholder="+256 700 000000" />
+              </div>
+              <div>
+                {label('Email')}
+                <input className="input" type="email" value={form.email}
+                  onChange={e => set('email', e.target.value)}
+                  placeholder="contact@email.com" />
               </div>
             </div>
 
-            {/* Tags */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                {label('Area / Neighbourhood')}
+                <input className="input" value={form.area}
+                  onChange={e => set('area', e.target.value)}
+                  placeholder="e.g. Kololo" />
+              </div>
+              <div>
+                {label('City')}
+                <input className="input" value={form.city}
+                  onChange={e => set('city', e.target.value)}
+                  placeholder="e.g. Kampala" />
+              </div>
+            </div>
+
+            <div>
+              {label('Source')}
+              <input className="input" value={form.source}
+                onChange={e => set('source', e.target.value)}
+                placeholder="e.g. Referral, Portal" />
+            </div>
+
             <div>
               {label('Tags (comma separated)')}
-              <input className="input" value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="e.g. VIP, Urgent, High value" />
+              <input className="input" value={form.tags}
+                onChange={e => set('tags', e.target.value)}
+                placeholder="e.g. VIP, Urgent" />
             </div>
 
-            {/* Last contacted */}
             <div>
               {label('Last contacted')}
-              <input className="input" type="date" value={form.last_contacted_at} onChange={e => set('last_contacted_at', e.target.value)} />
+              <input className="input" type="date" value={form.last_contacted_at}
+                onChange={e => set('last_contacted_at', e.target.value)} />
             </div>
 
-            {/* Notes */}
             <div>
               {label('Notes')}
-              <textarea className="input" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Any relevant notes..." rows={3} />
+              <textarea className="input" value={form.notes}
+                onChange={e => set('notes', e.target.value)}
+                placeholder="Any relevant notes..." rows={3} />
             </div>
 
             {error && (
-              <div style={{ color: 'var(--danger)', fontSize: 13, padding: '8px 12px', background: 'rgba(224,82,82,0.08)', border: '1px solid rgba(224,82,82,0.2)' }}>
+              <div style={{
+                color: 'var(--danger)', fontSize: 13, padding: '8px 12px',
+                background: 'rgba(224,82,82,0.08)', border: '1px solid rgba(224,82,82,0.2)'
+              }}>
                 {error}
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <div style={{
+            padding: '14px 20px',
+            borderTop: '1px solid var(--border)',
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'flex-end',
+            position: 'sticky',
+            bottom: 0,
+            background: 'var(--surface)',
+          }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? <span className="spinner" /> : (contact ? 'Save changes' : 'Add contact')}
