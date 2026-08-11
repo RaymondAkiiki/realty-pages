@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql, query } from '@/lib/db'
 import { withAuth } from '@/lib/auth'
+import { buildAreaDisplay, splitAreas } from '@/lib/contact-normalize'
 
 // GET /api/contacts
 export async function GET(request: NextRequest) {
@@ -28,8 +29,16 @@ export async function GET(request: NextRequest) {
       params.push(status)
     }
     if (area) {
-      conditions.push(`LOWER(c.area) LIKE LOWER($${idx++})`)
+      conditions.push(`(
+        LOWER(c.area) LIKE LOWER($${idx++}) OR
+        EXISTS (
+          SELECT 1 FROM unnest(COALESCE(c.areas, '{}')) a
+          WHERE LOWER(a) = LOWER($${idx})
+        )
+      )`)
       params.push(`%${area}%`)
+      params.push(area)
+      idx++
     }
     if (city) {
       conditions.push(`LOWER(c.city) LIKE LOWER($${idx++})`)
@@ -42,6 +51,7 @@ export async function GET(request: NextRequest) {
         LOWER(COALESCE(c.email,'')) LIKE LOWER($${idx}) OR
         LOWER(COALESCE(c.phone,'')) LIKE LOWER($${idx}) OR
         LOWER(COALESCE(c.area,'')) LIKE LOWER($${idx}) OR
+        LOWER(COALESCE(array_to_string(c.areas, ' '),'')) LIKE LOWER($${idx}) OR
         LOWER(COALESCE(c.notes,'')) LIKE LOWER($${idx})
       )`)
       params.push(p)
@@ -71,8 +81,9 @@ export async function GET(request: NextRequest) {
     const total = parseInt(countResult[0]?.count || '0')
 
     const areas = await sql`
-      SELECT DISTINCT area FROM contacts
-      WHERE org_id = ${session.orgId} AND area IS NOT NULL AND area != ''
+      SELECT DISTINCT unnest(COALESCE(areas, ARRAY[]::text[])) AS area
+      FROM contacts
+      WHERE org_id = ${session.orgId}
       ORDER BY area ASC
     `
     const cities = await sql`
@@ -99,6 +110,8 @@ export async function POST(request: NextRequest) {
     try {
       const body = await request.json()
       const { name, phone, email, type, status, source, city, area, tags, notes, last_contacted_at } = body
+      const areas = splitAreas(area)
+      const displayArea = buildAreaDisplay(area, areas)
 
       if (!name?.trim()) {
         return NextResponse.json({ error: 'Name is required' }, { status: 400 })
@@ -107,7 +120,7 @@ export async function POST(request: NextRequest) {
       const rows = await sql`
         INSERT INTO contacts (
           org_id, created_by, name, phone, email, type, status,
-          source, city, area, tags, notes, last_contacted_at
+          source, city, area, areas, tags, notes, last_contacted_at
         ) VALUES (
           ${session.orgId}, ${session.userId},
           ${name.trim()},
@@ -117,7 +130,8 @@ export async function POST(request: NextRequest) {
           ${status || 'active'},
           ${source || null},
           ${city   || null},
-          ${area   || null},
+          ${displayArea},
+          ${areas},
           ${tags   || []},
           ${notes  || null},
           ${last_contacted_at || null}

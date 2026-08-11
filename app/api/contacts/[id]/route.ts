@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql, query } from '@/lib/db'
 import { withAuth } from '@/lib/auth'
+import { buildAreaDisplay, splitAreas } from '@/lib/contact-normalize'
 
 export async function GET(
   request: NextRequest,
@@ -31,6 +32,7 @@ export async function PATCH(
 
       const body = await request.json()
       const { name, phone, email, type, status, source, city, area, tags, notes, last_contacted_at } = body
+      const areas = area !== undefined ? splitAreas(area) : undefined
 
       const sets: string[] = []
       const vals: any[]    = []
@@ -50,7 +52,8 @@ export async function PATCH(
       maybe('status',            status)
       maybe('source',            source,            v => v || null)
       maybe('city',              city,              v => v || null)
-      maybe('area',              area,              v => v || null)
+      maybe('area',              area,              v => buildAreaDisplay(v, areas || []))
+      maybe('areas',             areas,             v => v || [])
       maybe('tags',              tags,              v => v || [])
       maybe('notes',             notes,             v => v || null)
       maybe('last_contacted_at', last_contacted_at, v => v || null)

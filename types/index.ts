@@ -13,6 +13,7 @@ export interface Contact {
   source: string | null
   city: string | null
   area: string | null
+  areas: string[]
   tags: string[]
   notes: string | null
   last_contacted_at: string | null

@@ -22,6 +22,13 @@ interface ApiResponse {
   cities: string[]
 }
 
+interface DuplicateGroup {
+  phoneKey: string
+  count: number
+  contacts: Contact[]
+  preview: Contact
+}
+
 export default function ContactsPage() {
   const [data, setData] = useState<ApiResponse | null>(null)
   const [filters, setFilters] = useState<FiltersState>({ search: '', type: '', status: '', area: '', city: '' })
@@ -34,6 +41,9 @@ export default function ContactsPage() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([])
+  const [showDuplicates, setShowDuplicates] = useState(false)
+  const [mergingPhoneKey, setMergingPhoneKey] = useState<string | null>(null)
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => setToast({ msg, type })
 
@@ -60,10 +70,26 @@ export default function ContactsPage() {
     setSelectedIds(new Set())
   }, [filters, page])
 
+  const fetchDuplicates = useCallback(async () => {
+    try {
+      const res = await fetch('/api/contacts/duplicates')
+      if (!res.ok) return
+      const json = await res.json()
+      setDuplicateGroups(json.groups || [])
+      if ((json.groups || []).length > 0) setShowDuplicates(true)
+    } catch (err) {
+      console.error('Duplicate fetch error:', err)
+    }
+  }, [])
+
   useEffect(() => {
     const t = setTimeout(fetchContacts, filters.search ? 300 : 0)
     return () => clearTimeout(t)
   }, [fetchContacts])
+
+  useEffect(() => {
+    fetchDuplicates()
+  }, [fetchDuplicates])
 
   function setFilter(key: keyof FiltersState, val: string) {
     setFilters(f => ({ ...f, [key]: val }))
@@ -90,6 +116,26 @@ export default function ContactsPage() {
     await Promise.all(ids.map(id => fetch(`/api/contacts/${id}`, { method: 'DELETE' })))
     showToast(`${ids.length} contacts deleted`)
     fetchContacts()
+  }
+
+  async function handleMergeDuplicate(phoneKey: string) {
+    setMergingPhoneKey(phoneKey)
+    const res = await fetch('/api/contacts/duplicates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phoneKey }),
+    })
+    setMergingPhoneKey(null)
+
+    if (!res.ok) {
+      showToast('Failed to merge duplicates', 'error')
+      return
+    }
+
+    const data = await res.json()
+    showToast(`Merged ${data.removed + 1} duplicate contacts`)
+    fetchContacts()
+    fetchDuplicates()
   }
 
   function handleExport() {
@@ -177,6 +223,26 @@ export default function ContactsPage() {
           <span className="btn-label">Add contact</span>
         </button>
       </div>
+
+      {duplicateGroups.length > 0 && (
+        <div style={{
+          padding: '10px 20px',
+          borderBottom: '1px solid var(--border)',
+          background: 'rgba(212,168,67,0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          flexShrink: 0,
+        }}>
+          <div style={{ flex: 1, minWidth: 220, fontSize: 13, color: 'var(--ink-2)' }}>
+            <strong style={{ color: 'var(--ink)' }}>{duplicateGroups.length}</strong> repeated phone {duplicateGroups.length === 1 ? 'number needs' : 'numbers need'} review.
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowDuplicates(true)}>
+            Review duplicates
+          </button>
+        </div>
+      )}
 
       {/* ── Desktop filter bar ── */}
       <div className="filter-bar-desktop" style={{
@@ -557,6 +623,80 @@ export default function ContactsPage() {
           onClose={() => setShowImport(false)}
           onImported={(count) => { fetchContacts(); showToast(`${count} contacts imported`) }}
         />
+      )}
+
+      {showDuplicates && duplicateGroups.length > 0 && (
+        <div className="modal-overlay" onClick={() => setShowDuplicates(false)}>
+          <div className="modal" style={{ maxWidth: 760 }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              position: 'sticky',
+              top: 0,
+              background: 'var(--surface)',
+              zIndex: 1,
+            }}>
+              <h2>Repeated contacts</h2>
+              <button onClick={() => setShowDuplicates(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 4 }}>×</button>
+            </div>
+
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {duplicateGroups.map(group => (
+                <div key={group.phoneKey} style={{ border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                  <div style={{ padding: 14, borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 500, marginBottom: 3 }}>{group.preview.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>
+                        {group.count} contacts share phone ending {group.phoneKey}
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={mergingPhoneKey === group.phoneKey}
+                      onClick={() => handleMergeDuplicate(group.phoneKey)}
+                    >
+                      {mergingPhoneKey === group.phoneKey ? <span className="spinner" /> : 'Merge group'}
+                    </button>
+                  </div>
+
+                  <div style={{ padding: 14, display: 'grid', gap: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>
+                      Combined result: <strong style={{ color: 'var(--ink)' }}>{group.preview.name}</strong>
+                      {group.preview.area ? ` · ${group.preview.area}` : ''}
+                      {group.preview.email ? ` · ${group.preview.email}` : ''}
+                    </div>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr>
+                            {['Name','Phone','Area','Type','Status','Email'].map(h => (
+                              <th key={h} style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--ink-2)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.contacts.map(contact => (
+                            <tr key={contact.id}>
+                              <td style={{ padding: '7px 8px', borderBottom: '1px solid var(--border)' }}>{contact.name}</td>
+                              <td style={{ padding: '7px 8px', borderBottom: '1px solid var(--border)' }}>{contact.phone || '—'}</td>
+                              <td style={{ padding: '7px 8px', borderBottom: '1px solid var(--border)' }}>{contact.area || '—'}</td>
+                              <td style={{ padding: '7px 8px', borderBottom: '1px solid var(--border)' }}>{contact.type}</td>
+                              <td style={{ padding: '7px 8px', borderBottom: '1px solid var(--border)' }}>{contact.status}</td>
+                              <td style={{ padding: '7px 8px', borderBottom: '1px solid var(--border)' }}>{contact.email || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && <Toast message={toast.msg} type={toast.type} onDismiss={() => setToast(null)} />}

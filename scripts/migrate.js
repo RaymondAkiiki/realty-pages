@@ -81,6 +81,7 @@ async function migrate() {
       source TEXT,
       city TEXT,
       area TEXT,
+      areas TEXT[] DEFAULT '{}',
       tags TEXT[] DEFAULT '{}',
       notes TEXT,
       last_contacted_at TIMESTAMPTZ,
@@ -90,7 +91,21 @@ async function migrate() {
   `
 
   await sql`
+    ALTER TABLE contacts
+    ADD COLUMN IF NOT EXISTS areas TEXT[] DEFAULT '{}';
+  `
+  await sql`
+    UPDATE contacts
+    SET areas = regexp_split_to_array(initcap(trim(area)), '\\s*(,|;|/|\\||&|\\+|\\band\\b|\\s+)\\s*')
+    WHERE (areas IS NULL OR cardinality(areas) = 0)
+      AND area IS NOT NULL
+      AND area != '';
+  `
+  await sql`
     CREATE INDEX IF NOT EXISTS idx_contacts_org_area ON contacts(org_id, area);
+  `
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_contacts_org_areas ON contacts USING GIN(areas);
   `
   await sql`
     CREATE INDEX IF NOT EXISTS idx_contacts_org_type ON contacts(org_id, type);

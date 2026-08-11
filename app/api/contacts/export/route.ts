@@ -23,8 +23,16 @@ export async function GET(request: NextRequest) {
       params.push(status)
     }
     if (area) {
-      conditions.push(`LOWER(area) LIKE LOWER($${idx++})`)
+      conditions.push(`(
+        LOWER(area) LIKE LOWER($${idx++}) OR
+        EXISTS (
+          SELECT 1 FROM unnest(COALESCE(areas, '{}')) a
+          WHERE LOWER(a) = LOWER($${idx})
+        )
+      )`)
       params.push(`%${area}%`)
+      params.push(area)
+      idx++
     }
     if (search) {
       conditions.push(`(LOWER(name) LIKE LOWER($${idx}) OR LOWER(COALESCE(email,'')) LIKE LOWER($${idx}))`)
@@ -33,14 +41,14 @@ export async function GET(request: NextRequest) {
     }
 
     const contacts = await query<any>(
-      `SELECT name, phone, email, type, status, area, city, source, tags, notes, last_contacted_at, created_at
+      `SELECT name, phone, email, type, status, area, areas, city, source, tags, notes, last_contacted_at, created_at
        FROM contacts
        WHERE ${conditions.join(' AND ')}
        ORDER BY area ASC NULLS LAST, name ASC`,
       params
     )
 
-    const headers = ['name','phone','email','type','status','area','city','source','tags','notes','last_contacted_at','created_at']
+    const headers = ['name','phone','email','type','status','area','areas','city','source','tags','notes','last_contacted_at','created_at']
 
     const escape = (val: any): string => {
       if (val === null || val === undefined) return ''

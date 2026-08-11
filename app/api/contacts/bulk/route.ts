@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { withAuth } from '@/lib/auth'
+import { buildAreaDisplay, splitAreas } from '@/lib/contact-normalize'
 
 const VALID_TYPES = ['broker', 'agent', 'landlord', 'tenant', 'contractor', 'developer', 'buyer', 'other']
 const VALID_STATUSES = ['lead', 'active', 'inactive']
@@ -44,10 +45,12 @@ export async function POST(request: NextRequest) {
         }
 
         try {
+          const area = row.area || row.Area || row.AREA || null
+          const areas = splitAreas(area)
           await sql`
             INSERT INTO contacts (
               org_id, created_by, name, phone, email, type, status,
-              source, city, area, tags, notes
+              source, city, area, areas, tags, notes
             ) VALUES (
               ${session.orgId},
               ${session.userId},
@@ -58,7 +61,8 @@ export async function POST(request: NextRequest) {
               ${normalizeStatus(row.status || row.Status || row.STATUS || '')},
               ${row.source || row.Source || null},
               ${row.city || row.City || row.CITY || null},
-              ${row.area || row.Area || row.AREA || null},
+              ${buildAreaDisplay(area, areas)},
+              ${areas},
               ${row.tags ? row.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []},
               ${row.notes || row.Notes || null}
             )
